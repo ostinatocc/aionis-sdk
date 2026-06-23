@@ -2,7 +2,7 @@
 
 TypeScript SDK facade for Aionis Runtime.
 
-Docs: [https://docs.aionis.work/integrations/sdk](https://docs.aionis.work/integrations/sdk)
+Docs: [https://docs.aionis.work/plugins/sdk](https://docs.aionis.work/plugins/sdk)
 
 Source: [https://github.com/ostinatocc/aionis-sdk](https://github.com/ostinatocc/aionis-sdk)
 
@@ -24,6 +24,7 @@ import {
   planAssetObserveEvents,
   shouldContinueMemoryIdsFromGuide,
   snapshotInputFromGuideLoop,
+  traceDerivedSkillCandidatesFromMeasure,
 } from "@aionis/sdk";
 
 const aionis = createAionisClient({
@@ -74,6 +75,11 @@ const measure = await aionis.measure(measureInputFromGuideLoop({
   sufficient_evidence: true,
 }));
 
+const traceSkillCandidates = traceDerivedSkillCandidatesFromMeasure(measure);
+for (const candidate of traceSkillCandidates) {
+  console.log(candidate.trace_derived_skill.skill_name);
+}
+
 await aionis.snapshot(snapshotInputFromGuideLoop({
   run_id: "run-001",
   task_signature: "first-integration",
@@ -108,6 +114,23 @@ const compactPrompt = compileExecutionAgentContext({
 
 `context_mode: "compact_agent"` keeps SDK guide defaults on the governed
 full-power path while shortening only `agent_context.prompt_text`.
+
+## Trace-Derived Skill Candidates
+
+When `/v1/measure` has enough positive continuity or workflow-reuse evidence,
+Aionis can expose `trace_derived_skill` entries inside
+`effect_report.training_candidates`.
+
+These are controlled training assets, not prompt instructions:
+
+- `agent_prompt_included` is always `false`
+- `runtime_mutation` is always `false`
+- `authority_state` is always `candidate`
+- later use must pass the normal admission and promotion gates
+
+Use `traceDerivedSkillCandidatesFromMeasure()` to inspect them after a measured
+loop. They are useful for dashboards, review queues, and future procedure
+promotion workflows.
 
 ## Plan As Memory Asset
 

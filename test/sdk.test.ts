@@ -26,6 +26,7 @@ import {
   rehydrateHintsFromGuide,
   routeContractFromGuide,
   shouldContinueMemoryIdsFromGuide,
+  traceDerivedSkillCandidatesFromMeasure,
 } from "../src/index.ts";
 
 test("@aionis/sdk wraps product facade routes", async () => {
@@ -117,6 +118,56 @@ test("@aionis/sdk wraps product facade routes", async () => {
   assert.equal(calls[5]?.body.tenant_id, "tenant-a");
   assert.equal(calls[5]?.body.scope, "scope-a");
   assert.equal(calls[5]?.body.run_id, "run-1");
+});
+
+test("@aionis/sdk exposes trace-derived skill candidates from measure reports", () => {
+  const candidates = traceDerivedSkillCandidatesFromMeasure({
+    contract_version: "aionis_measure_result_v1",
+    effect_report: {
+      contract_version: "aionis_effect_report_v1",
+      training_candidates: [
+        {
+          candidate_type: "trace_derived_skill",
+          source_ids: ["effect_kernel:continuity", "run:run-1"],
+          label: "positive",
+          export_ready: true,
+          reason: "Positive continuity evidence produced a controlled trace-derived skill candidate.",
+          trace_derived_skill: {
+            contract_version: "aionis_trace_derived_skill_candidate_v1",
+            skill_name: "Continue verified execution state across sessions",
+            source_trace_ids: ["effect_kernel:continuity", "run:run-1"],
+            source_signal_ids: ["useful_continuity_improved"],
+            applies_when: ["task_signature:checkout-migration"],
+            does_not_apply_when: ["A newer memory contests the source trace."],
+            procedure_steps: ["Recover the current Aionis guide before continuing the task."],
+            target_files: ["src/checkout.ts"],
+            acceptance_checks: ["effect_kernel_passed"],
+            failure_counterexamples: [],
+            evidence_refs: ["useful_continuity_improved"],
+            authority_state: "candidate",
+            promotion_status: "promotion_ready",
+            export_policy: {
+              agent_prompt_included: false,
+              runtime_mutation: false,
+              required_gate: "admission_and_promotion_gate",
+            },
+          },
+        },
+        {
+          candidate_type: "workflow_selector",
+          source_ids: ["effect_kernel:learning"],
+          label: "neutral",
+          export_ready: false,
+          reason: "Not a trace skill candidate.",
+        },
+      ],
+    },
+  });
+
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0]?.trace_derived_skill.authority_state, "candidate");
+  assert.equal(candidates[0]?.trace_derived_skill.export_policy.agent_prompt_included, false);
+  assert.equal(candidates[0]?.trace_derived_skill.export_policy.runtime_mutation, false);
 });
 
 test("@aionis/sdk maps Mem0 search results to backend-agnostic admission candidates", () => {

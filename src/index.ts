@@ -605,6 +605,110 @@ export type AionisProductTask = {
   task_family?: string;
 };
 
+export type AionisTrainingCandidateLabel =
+  | "positive"
+  | "negative"
+  | "neutral"
+  | "blocked"
+  | "insufficient_evidence";
+
+export type AionisTrainingCandidateType =
+  | "handoff_distillation"
+  | "transfer_judge"
+  | "workflow_selector"
+  | "forgetting_suppression"
+  | "authority_judgment"
+  | "trace_derived_skill";
+
+export type AionisTraceDerivedSkillCandidate = {
+  contract_version: "aionis_trace_derived_skill_candidate_v1";
+  skill_name: string;
+  source_trace_ids: string[];
+  source_signal_ids: string[];
+  applies_when: string[];
+  does_not_apply_when: string[];
+  procedure_steps: string[];
+  target_files: string[];
+  acceptance_checks: string[];
+  failure_counterexamples: string[];
+  evidence_refs: string[];
+  authority_state: "candidate";
+  promotion_status: "candidate_only" | "needs_feedback_attribution" | "promotion_ready";
+  export_policy: {
+    agent_prompt_included: false;
+    runtime_mutation: false;
+    required_gate: "admission_and_promotion_gate";
+  };
+};
+
+export type AionisGenericTrainingCandidate = {
+  candidate_type: Exclude<AionisTrainingCandidateType, "trace_derived_skill">;
+  source_ids: string[];
+  label: AionisTrainingCandidateLabel;
+  export_ready: boolean;
+  reason: string;
+};
+
+export type AionisTraceDerivedSkillTrainingCandidate = {
+  candidate_type: "trace_derived_skill";
+  source_ids: string[];
+  label: AionisTrainingCandidateLabel;
+  export_ready: boolean;
+  reason: string;
+  trace_derived_skill: AionisTraceDerivedSkillCandidate;
+};
+
+export type AionisTrainingCandidate =
+  | AionisGenericTrainingCandidate
+  | AionisTraceDerivedSkillTrainingCandidate;
+
+export type AionisEffectReport = AionisJsonObject & {
+  contract_version: "aionis_effect_report_v1";
+  tenant_id: string;
+  scope: string;
+  task: {
+    task_id?: string | null;
+    run_id?: string | null;
+    task_signature?: string | null;
+    task_family?: string | null;
+  };
+  comparison: {
+    mode: "baseline_vs_aionis" | "observe_only_vs_active" | "single_run_history_impact";
+    baseline_run_id?: string | null;
+    aionis_run_id?: string | null;
+    sufficient_evidence: boolean;
+  };
+  history_impact: {
+    changed_future_behavior: boolean;
+    impact_direction: "positive" | "negative" | "neutral" | "insufficient_evidence";
+    changed_fields: string[];
+    explanation: string;
+  };
+  training_candidates: AionisTrainingCandidate[];
+  evidence: {
+    evidence_ids: string[];
+    replay_run_ids: string[];
+    signal_summary_ids: string[];
+    promotion_quality_summary_ids: string[];
+  };
+};
+
+export type AionisMeasureResult = AionisJsonObject & {
+  contract_version: "aionis_measure_result_v1";
+  tenant_id: string;
+  scope: string;
+  measurement_input: {
+    source: string;
+    baseline: AionisJsonObject;
+    aionis: AionisJsonObject;
+  };
+  effect_report: AionisEffectReport;
+  memory_decision_trace?: AionisJsonObject;
+  memory_decision_audit?: AionisJsonObject;
+  kernel_report?: AionisJsonObject;
+  source_map: AionisJsonObject;
+};
+
 export type AionisFeedbackFromGuideInput = {
   guide: unknown;
   reason: string;
@@ -1692,7 +1796,7 @@ export class AionisClient {
     return this.post<T>("/v1/rehydrate", body, options);
   }
 
-  async measure<T = unknown>(body: AionisJsonObject, options?: AionisRequestOptions): Promise<T> {
+  async measure<T = AionisMeasureResult>(body: AionisJsonObject, options?: AionisRequestOptions): Promise<T> {
     return this.post<T>("/v1/measure", body, options);
   }
 
@@ -1883,7 +1987,7 @@ export class AionisExecutionClient {
     });
   }
 
-  async measureRun<T = unknown>(input: AionisExecutionMeasureRunInput, options?: AionisRequestOptions): Promise<T> {
+  async measureRun<T = AionisMeasureResult>(input: AionisExecutionMeasureRunInput, options?: AionisRequestOptions): Promise<T> {
     return this.client.measure<T>(measureInputFromGuideLoop({
       task: {
         task_id: input.task_id ?? input.run_id,
@@ -2265,6 +2369,26 @@ export function memoryAdmissionDatasetJsonlFromGuide(
   options: AionisMemoryAdmissionDatasetExportOptions = {},
 ): string {
   return memoryAdmissionDatasetJsonlFromRows(memoryAdmissionDatasetRowsFromGuide(guide, options));
+}
+
+export function effectReportFromMeasure(measure: unknown): AionisEffectReport {
+  const effectReport = asRecord(asRecord(measure)?.effect_report);
+  if (!effectReport) {
+    throw new Error("Aionis measure response is missing effect_report");
+  }
+  return effectReport as AionisEffectReport;
+}
+
+export function traceDerivedSkillCandidatesFromMeasure(
+  measure: unknown,
+): AionisTraceDerivedSkillTrainingCandidate[] {
+  const candidates = asRecord(effectReportFromMeasure(measure))?.training_candidates;
+  if (!Array.isArray(candidates)) return [];
+  return candidates.filter((candidate): candidate is AionisTraceDerivedSkillTrainingCandidate => {
+    const record = asRecord(candidate);
+    return record?.candidate_type === "trace_derived_skill"
+      && asRecord(record.trace_derived_skill)?.contract_version === "aionis_trace_derived_skill_candidate_v1";
+  });
 }
 
 export function memoryIdsFromGuide(guide: unknown): string[] {
