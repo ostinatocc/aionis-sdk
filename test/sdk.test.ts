@@ -823,6 +823,9 @@ test("@aionis/sdk execution helpers wrap observe, guide, feedback, measure, and 
     title: "Reviewer handoff",
     summary: "Continue the verified branch and avoid broad legacy search.",
     continuation_hint: "review boundary and continue passed branch",
+    salience: 0.86,
+    importance: 0.88,
+    confidence: 0.95,
   });
 
   const guide = await client.execution.guideForRole<Record<string, unknown>>({
@@ -877,6 +880,9 @@ test("@aionis/sdk execution helpers wrap observe, guide, feedback, measure, and 
   assert.equal(calls[1]?.body.owner_team_id, "checkout-team");
   assert.equal((calls[1]?.body.handoff as Record<string, unknown>).handoff_kind, "task_handoff");
   assert.equal((calls[1]?.body.handoff as Record<string, unknown>).anchor, "checkout-migration:run-1:planner-1");
+  assert.equal((calls[1]?.body.handoff as Record<string, unknown>).salience, 0.86);
+  assert.equal((calls[1]?.body.handoff as Record<string, unknown>).importance, 0.88);
+  assert.equal((calls[1]?.body.handoff as Record<string, unknown>).confidence, 0.95);
 
   assert.equal(calls[2]?.body.mode, "full_power");
   assert.equal(calls[2]?.body.agent_role, "reviewer");

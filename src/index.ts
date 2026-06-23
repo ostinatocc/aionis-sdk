@@ -778,6 +778,8 @@ export type AionisExecutionStepInput = AionisExecutionBaseInput & {
   continuation_hint?: string;
   resume_hint?: string;
   reuse_hint?: string;
+  salience?: number;
+  importance?: number;
   confidence?: number;
   raw_ref?: string;
   evidence_ref?: string;
@@ -1652,6 +1654,8 @@ function executionPayload(input: AionisExecutionStepInput): AionisJsonObject {
     continuation_hint: input.continuation_hint,
     resume_hint: input.resume_hint,
     reuse_hint: input.reuse_hint,
+    salience: input.salience,
+    importance: input.importance,
     confidence: input.confidence,
     raw_ref: input.raw_ref,
     evidence_ref: input.evidence_ref,
@@ -1689,6 +1693,9 @@ function executionHandoffPayload(input: AionisExecutionHandoffInput): AionisJson
     title: input.title,
     summary: input.summary,
     handoff_text: input.handoff_text ?? input.continuation_hint ?? input.summary,
+    salience: input.salience,
+    importance: input.importance,
+    confidence: input.confidence,
     risk: input.risk,
     acceptance_checks: input.acceptance_checks,
     tags: input.tags,
