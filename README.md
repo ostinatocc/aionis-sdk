@@ -148,6 +148,22 @@ procedure steps, acceptance checks, evidence refs, and the safety gate. The
 review item is read-only; it does not promote or inject the candidate into an
 Agent prompt.
 
+Run the minimal review-item demo:
+
+```bash
+npm run build
+npm run example:trace-to-skill
+```
+
+The demo prints the product path and a safe review item:
+
+```text
+trace -> feedback attribution -> measure -> candidate -> review -> promotion gate
+```
+
+The output proves the candidate remains `authority_state: "candidate"`,
+`agent_prompt_included: false`, and `runtime_mutation: false`.
+
 ## Plan As Memory Asset
 
 Use `planAssetObserveEvents()` when a strong planner, reviewer, or human lead

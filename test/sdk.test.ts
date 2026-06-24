@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import test from "node:test";
 import {
   activeRouteTargetsFromGuide,
@@ -182,6 +183,36 @@ test("@aionis/sdk exposes trace-derived skill candidates from measure reports", 
   assert.equal(reviewItems[0]?.safety.agent_prompt_included, false);
   assert.equal(reviewItems[0]?.safety.runtime_mutation, false);
   assert.equal(reviewItems[0]?.safety.required_gate, "admission_and_promotion_gate");
+});
+
+test("@aionis/sdk trace-to-skill example emits safe review items", () => {
+  const output = execFileSync(process.execPath, ["examples/trace-to-skill-candidate.mjs"], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+  });
+  const parsed = JSON.parse(output) as {
+    product_path?: string;
+    candidate_count?: number;
+    review_item_count?: number;
+    review_items?: Array<{
+      skill_name?: string;
+      safety?: {
+        authority_state?: string;
+        agent_prompt_included?: boolean;
+        runtime_mutation?: boolean;
+        required_gate?: string;
+      };
+    }>;
+  };
+
+  assert.equal(parsed.product_path, "trace -> feedback attribution -> measure -> candidate -> review -> promotion gate");
+  assert.equal(parsed.candidate_count, 1);
+  assert.equal(parsed.review_item_count, 1);
+  assert.equal(parsed.review_items?.[0]?.skill_name, "Continue verified execution state across sessions");
+  assert.equal(parsed.review_items?.[0]?.safety?.authority_state, "candidate");
+  assert.equal(parsed.review_items?.[0]?.safety?.agent_prompt_included, false);
+  assert.equal(parsed.review_items?.[0]?.safety?.runtime_mutation, false);
+  assert.equal(parsed.review_items?.[0]?.safety?.required_gate, "admission_and_promotion_gate");
 });
 
 test("@aionis/sdk maps Mem0 search results to backend-agnostic admission candidates", () => {

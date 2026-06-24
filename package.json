@@ -1,6 +1,6 @@
 {
   "name": "@aionis/sdk",
-  "version": "0.2.26",
+  "version": "0.2.27",
   "description": "TypeScript SDK facade for the Aionis state-adjudicated memory Runtime.",
   "license": "Apache-2.0",
   "homepage": "https://docs.aionis.work/plugins/sdk",
@@ -20,6 +20,7 @@
   },
   "files": [
     "dist",
+    "examples",
     "README.md"
   ],
   "engines": {
@@ -27,7 +28,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "tsx --test test/*.test.ts",
+    "test": "npm run build --silent && tsx --test test/*.test.ts",
+    "example:trace-to-skill": "node examples/trace-to-skill-candidate.mjs",
     "prepack": "npm run build"
   },
   "devDependencies": {
