@@ -25,6 +25,7 @@ import {
   shouldContinueMemoryIdsFromGuide,
   snapshotInputFromGuideLoop,
   traceDerivedSkillCandidatesFromMeasure,
+  traceDerivedSkillReviewItemsFromMeasure,
 } from "@aionis/sdk";
 
 const aionis = createAionisClient({
@@ -80,6 +81,11 @@ for (const candidate of traceSkillCandidates) {
   console.log(candidate.trace_derived_skill.skill_name);
 }
 
+const traceSkillReviewItems = traceDerivedSkillReviewItemsFromMeasure(measure);
+for (const item of traceSkillReviewItems) {
+  console.log(item.skill_name, item.review_action, item.safety.required_gate);
+}
+
 await aionis.snapshot(snapshotInputFromGuideLoop({
   run_id: "run-001",
   task_signature: "first-integration",
@@ -121,16 +127,26 @@ When `/v1/measure` has enough positive continuity or workflow-reuse evidence,
 Aionis can expose `trace_derived_skill` entries inside
 `effect_report.training_candidates`.
 
-These are controlled training assets, not prompt instructions:
+These are controlled training assets, not prompt instructions. The product
+path is:
+
+```text
+agent trace -> feedback attribution -> measure -> skill candidate -> review -> promotion gate
+```
+
+The candidate is intentionally safe by default:
 
 - `agent_prompt_included` is always `false`
 - `runtime_mutation` is always `false`
 - `authority_state` is always `candidate`
 - later use must pass the normal admission and promotion gates
 
-Use `traceDerivedSkillCandidatesFromMeasure()` to inspect them after a measured
-loop. They are useful for dashboards, review queues, and future procedure
-promotion workflows.
+Use `traceDerivedSkillCandidatesFromMeasure()` when you want the raw Runtime
+candidate contract. Use `traceDerivedSkillReviewItemsFromMeasure()` when you
+want a compact review queue item with `skill_name`, applicability conditions,
+procedure steps, acceptance checks, evidence refs, and the safety gate. The
+review item is read-only; it does not promote or inject the candidate into an
+Agent prompt.
 
 ## Plan As Memory Asset
 

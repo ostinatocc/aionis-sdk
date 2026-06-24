@@ -662,6 +662,33 @@ export type AionisTrainingCandidate =
   | AionisGenericTrainingCandidate
   | AionisTraceDerivedSkillTrainingCandidate;
 
+export type AionisTraceDerivedSkillReviewItem = {
+  candidate_type: "trace_derived_skill";
+  review_action: "review_for_promotion";
+  skill_name: string;
+  label: AionisTrainingCandidateLabel;
+  export_ready: boolean;
+  promotion_status: AionisTraceDerivedSkillCandidate["promotion_status"];
+  reason: string;
+  source_ids: string[];
+  source_trace_ids: string[];
+  source_signal_ids: string[];
+  applies_when: string[];
+  does_not_apply_when: string[];
+  procedure_steps: string[];
+  target_files: string[];
+  acceptance_checks: string[];
+  failure_counterexamples: string[];
+  evidence_refs: string[];
+  safety: {
+    authority_state: "candidate";
+    agent_prompt_included: false;
+    runtime_mutation: false;
+    required_gate: "admission_and_promotion_gate";
+  };
+  candidate: AionisTraceDerivedSkillTrainingCandidate;
+};
+
 export type AionisEffectReport = AionisJsonObject & {
   contract_version: "aionis_effect_report_v1";
   tenant_id: string;
@@ -2395,6 +2422,40 @@ export function traceDerivedSkillCandidatesFromMeasure(
     const record = asRecord(candidate);
     return record?.candidate_type === "trace_derived_skill"
       && asRecord(record.trace_derived_skill)?.contract_version === "aionis_trace_derived_skill_candidate_v1";
+  });
+}
+
+export function traceDerivedSkillReviewItemsFromMeasure(
+  measure: unknown,
+): AionisTraceDerivedSkillReviewItem[] {
+  return traceDerivedSkillCandidatesFromMeasure(measure).map((candidate) => {
+    const skill = candidate.trace_derived_skill;
+    return {
+      candidate_type: "trace_derived_skill",
+      review_action: "review_for_promotion",
+      skill_name: skill.skill_name,
+      label: candidate.label,
+      export_ready: candidate.export_ready,
+      promotion_status: skill.promotion_status,
+      reason: candidate.reason,
+      source_ids: candidate.source_ids,
+      source_trace_ids: skill.source_trace_ids,
+      source_signal_ids: skill.source_signal_ids,
+      applies_when: skill.applies_when,
+      does_not_apply_when: skill.does_not_apply_when,
+      procedure_steps: skill.procedure_steps,
+      target_files: skill.target_files,
+      acceptance_checks: skill.acceptance_checks,
+      failure_counterexamples: skill.failure_counterexamples,
+      evidence_refs: skill.evidence_refs,
+      safety: {
+        authority_state: skill.authority_state,
+        agent_prompt_included: skill.export_policy.agent_prompt_included,
+        runtime_mutation: skill.export_policy.runtime_mutation,
+        required_gate: skill.export_policy.required_gate,
+      },
+      candidate,
+    };
   });
 }
 

@@ -27,6 +27,7 @@ import {
   routeContractFromGuide,
   shouldContinueMemoryIdsFromGuide,
   traceDerivedSkillCandidatesFromMeasure,
+  traceDerivedSkillReviewItemsFromMeasure,
 } from "../src/index.ts";
 
 test("@aionis/sdk wraps product facade routes", async () => {
@@ -121,7 +122,7 @@ test("@aionis/sdk wraps product facade routes", async () => {
 });
 
 test("@aionis/sdk exposes trace-derived skill candidates from measure reports", () => {
-  const candidates = traceDerivedSkillCandidatesFromMeasure({
+  const measure = {
     contract_version: "aionis_measure_result_v1",
     effect_report: {
       contract_version: "aionis_effect_report_v1",
@@ -162,12 +163,25 @@ test("@aionis/sdk exposes trace-derived skill candidates from measure reports", 
         },
       ],
     },
-  });
+  };
+
+  const candidates = traceDerivedSkillCandidatesFromMeasure(measure);
 
   assert.equal(candidates.length, 1);
   assert.equal(candidates[0]?.trace_derived_skill.authority_state, "candidate");
   assert.equal(candidates[0]?.trace_derived_skill.export_policy.agent_prompt_included, false);
   assert.equal(candidates[0]?.trace_derived_skill.export_policy.runtime_mutation, false);
+
+  const reviewItems = traceDerivedSkillReviewItemsFromMeasure(measure);
+  assert.equal(reviewItems.length, 1);
+  assert.equal(reviewItems[0]?.review_action, "review_for_promotion");
+  assert.equal(reviewItems[0]?.skill_name, "Continue verified execution state across sessions");
+  assert.deepEqual(reviewItems[0]?.applies_when, ["task_signature:checkout-migration"]);
+  assert.deepEqual(reviewItems[0]?.procedure_steps, ["Recover the current Aionis guide before continuing the task."]);
+  assert.equal(reviewItems[0]?.safety.authority_state, "candidate");
+  assert.equal(reviewItems[0]?.safety.agent_prompt_included, false);
+  assert.equal(reviewItems[0]?.safety.runtime_mutation, false);
+  assert.equal(reviewItems[0]?.safety.required_gate, "admission_and_promotion_gate");
 });
 
 test("@aionis/sdk maps Mem0 search results to backend-agnostic admission candidates", () => {
