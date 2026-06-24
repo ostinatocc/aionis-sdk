@@ -896,6 +896,7 @@ test("@aionis/sdk execution helpers wrap observe, guide, feedback, measure, and 
   const measure = await client.execution.measureRun({
     run_id: "run-1",
     task_signature: "checkout-migration",
+    workflow_signature: "checkout-migration-flow",
     after_guide: guide,
     feedback_result: feedback,
     sufficient_evidence: true,
@@ -941,5 +942,10 @@ test("@aionis/sdk execution helpers wrap observe, guide, feedback, measure, and 
   assert.equal(calls[3]?.body.tool_status, "succeeded");
 
   assert.equal((calls[4]?.body.task as Record<string, unknown>).task_signature, "checkout-migration");
+  assert.equal((calls[4]?.body.task as Record<string, unknown>).workflow_signature, "checkout-migration-flow");
+  assert.equal(
+    (calls[4]?.body.product_trace as Record<string, unknown>).workflow_signature,
+    undefined,
+  );
   assert.equal((calls[5]?.body.agent_context as Record<string, unknown>).prompt_text, "AIONIS_CTX v2\ncurrent use_now=passed branch");
 });
