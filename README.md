@@ -107,7 +107,7 @@ For token-sensitive Agent calls, request compact prompt rendering:
 
 ```ts
 const compactGuide = await aionis.guide({
-  query_text: "Continue the task without repeating failed work.",
+  query_text: "Continue the task from the current accepted state.",
   consumer_agent_id: "agent-1",
   context_mode: "compact_agent",
 });
@@ -328,7 +328,7 @@ Product guide:
 
 ```ts
 const result = await aionis.governMemory({
-  query_text: "Continue the checkout migration without reusing failed branches.",
+  query_text: "Continue the checkout migration from the current accepted state.",
   mode: "firewall",
   include_records: true,
   candidates: [
@@ -377,7 +377,7 @@ const mem0Results = await mem0.search("Continue checkout migration", {
 });
 
 const governed = await aionis.governMem0SearchResults({
-  query_text: "Continue checkout migration without repeating failed branches.",
+  query_text: "Continue checkout migration from the current accepted state.",
   run_id: "run-001",
   mem0_results: mem0Results,
 });
