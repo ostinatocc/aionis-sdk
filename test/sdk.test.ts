@@ -185,8 +185,8 @@ test("@aionis/sdk exposes trace-derived skill candidates from measure reports", 
   assert.equal(reviewItems[0]?.safety.required_gate, "admission_and_promotion_gate");
 });
 
-test("@aionis/sdk trace-to-skill example emits safe review items", () => {
-  const output = execFileSync(process.execPath, ["examples/trace-to-skill-candidate.mjs"], {
+test("@aionis/sdk trace-to-skill verification emits safe review items", () => {
+  const output = execFileSync(process.execPath, ["verification/trace-to-skill-candidate.mjs"], {
     cwd: process.cwd(),
     encoding: "utf8",
   });

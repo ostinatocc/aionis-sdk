@@ -148,14 +148,14 @@ procedure steps, acceptance checks, evidence refs, and the safety gate. The
 review item is read-only; it does not promote or inject the candidate into an
 Agent prompt.
 
-Run the minimal review-item demo:
+Run the minimal review-item verification:
 
 ```bash
 npm run build
-npm run example:trace-to-skill
+npm run verify:trace-to-skill
 ```
 
-The demo prints the product path and a safe review item:
+The verification prints the product path and a safe review item:
 
 ```text
 trace -> feedback attribution -> measure -> candidate -> review -> promotion gate
