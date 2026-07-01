@@ -122,6 +122,85 @@ test("@aionis/sdk wraps product facade routes", async () => {
   assert.equal(calls[5]?.body.run_id, "run-1");
 });
 
+test("@aionis/sdk guideAgentContext resolves inspect and rehydrate evidence into the Agent prompt", async () => {
+  const inspectId = "11111111-1111-4111-8111-111111111111";
+  const rehydrateId = "22222222-2222-4222-8222-222222222222";
+  const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+  const fakeFetch: typeof fetch = async (input, init) => {
+    const url = String(input);
+    const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+    calls.push({ url, body });
+    if (url.endsWith("/v1/guide")) {
+      return new Response(JSON.stringify({
+        tenant_id: "tenant-a",
+        scope: "scope-a",
+        guide_trace_id: "guide-trace-sdk",
+        agent_context: {
+          contract_version: "aionis_agent_context_v1",
+          prompt_text: "AIONIS_CTX v2\ncompact governed guide.",
+          use_now_memory_ids: [],
+          inspect_before_use_memory_ids: [inspectId],
+          do_not_use_memory_ids: [],
+          rehydrate_hints: [{ memory_id: rehydrateId, reason: "Exact patch evidence is required.", required: true }],
+          memory_ids: [inspectId, rehydrateId],
+        },
+      }), { status: 200 });
+    }
+    if (url.endsWith("/v1/memory/resolve")) {
+      const uri = String(body.uri);
+      const memoryId = uri.includes(inspectId) ? inspectId : rehydrateId;
+      return new Response(JSON.stringify({
+        tenant_id: "tenant-a",
+        scope: "scope-a",
+        uri,
+        type: "event",
+        node: {
+          id: memoryId,
+          uri,
+          type: "event",
+          title: memoryId === inspectId ? "Inspect evidence" : "Rehydrate evidence",
+          text_summary: "Compact summary",
+          slots: {
+            handoff_text: memoryId === inspectId
+              ? "INSPECT_EVIDENCE: inspect the route boundary before acting."
+              : "REHYDRATE_EVIDENCE: apply the exact accepted patch hunk.",
+          },
+        },
+      }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ error: "unexpected" }), { status: 404 });
+  };
+  const client = createAionisClient({
+    baseUrl: "http://127.0.0.1:3001",
+    tenant_id: "tenant-a",
+    scope: "scope-a",
+    fetchImpl: fakeFetch,
+  });
+
+  const result = await client.guideAgentContext({
+    query_text: "Continue with exact evidence.",
+    consumer_agent_id: "worker-a",
+    consumer_team_id: "team-a",
+    context_mode: "compact_agent",
+  });
+
+  assert.equal(result.contract_version, "aionis_sdk_agent_context_with_evidence_v1");
+  assert.equal(result.guide_trace_id, "guide-trace-sdk");
+  assert.deepEqual(calls.map((call) => call.url), [
+    "http://127.0.0.1:3001/v1/guide",
+    "http://127.0.0.1:3001/v1/memory/resolve",
+    "http://127.0.0.1:3001/v1/memory/resolve",
+  ]);
+  assert.equal(calls[0]?.body.mode, "full_power");
+  assert.equal(calls[1]?.body.include_slots, true);
+  assert.match(String(calls[1]?.body.uri), /aionis:\/\/tenant-a\/scope-a\/event\//);
+  assert.deepEqual(result.resolved_evidence.map((entry) => entry.surface), ["inspect_before_use", "rehydrate"]);
+  assert.match(result.agent_prompt, /AIONIS_RESOLVED_EVIDENCE v1/);
+  assert.match(result.agent_prompt, /INSPECT_EVIDENCE/);
+  assert.match(result.agent_prompt, /REHYDRATE_EVIDENCE/);
+  assert.equal(result.unresolved_memory_ids.length, 0);
+});
+
 test("@aionis/sdk exposes trace-derived skill candidates from measure reports", () => {
   const measure = {
     contract_version: "aionis_measure_result_v1",

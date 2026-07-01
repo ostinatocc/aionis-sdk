@@ -12,7 +12,6 @@ npm install @aionis/sdk
 
 ```ts
 import {
-  compileExecutionAgentContext,
   commandPostureFromGuide,
   createAionisClient,
   feedbackFromGuide,
@@ -35,34 +34,33 @@ const aionis = createAionisClient({
   scope: "my-agent",
 });
 
-const guide = await aionis.guide({
+const context = await aionis.guideAgentContext({
   query_text: "Continue the task.",
   consumer_agent_id: "agent-1",
   limit: 8,
   include_packets: true,
-});
-
-const context = compileExecutionAgentContext({
-  guide,
+  context_mode: "compact_agent",
+}, undefined, {
   task: "Continue the task.",
   budget_profile: "balanced",
 });
+
 const agentPrompt = context.agent_prompt;
-const commandPosture = commandPostureFromGuide(guide);
-const mustNotMemoryIds = mustNotMemoryIdsFromGuide(guide);
-const shouldContinueMemoryIds = shouldContinueMemoryIdsFromGuide(guide);
-const admissionRecord = memoryAdmissionRecordFromGuide(guide);
-const admissionDatasetJsonl = memoryAdmissionDatasetJsonlFromGuide(guide, {
+const commandPosture = commandPostureFromGuide(context.guide);
+const mustNotMemoryIds = mustNotMemoryIdsFromGuide(context.guide);
+const shouldContinueMemoryIds = shouldContinueMemoryIdsFromGuide(context.guide);
+const admissionRecord = memoryAdmissionRecordFromGuide(context.guide);
+const admissionDatasetJsonl = memoryAdmissionDatasetJsonlFromGuide(context.guide, {
   run_id: "run-001",
   task_signature: "first-integration",
 });
 
 const feedback = await aionis.feedback(feedbackFromGuide({
-  guide,
+  guide: context.guide,
   reason: "Agent used the exposed memory successfully.",
   run_id: "run-001",
   outcome: "positive",
-  used_memory_ids: guide.agent_context.use_now_memory_ids.slice(0, 1),
+  used_memory_ids: context.guide.agent_context.use_now_memory_ids.slice(0, 1),
 }));
 
 const measure = await aionis.measure(measureInputFromGuideLoop({
@@ -71,7 +69,7 @@ const measure = await aionis.measure(measureInputFromGuideLoop({
     run_id: "run-001",
     task_signature: "first-integration",
   },
-  after_guide: guide,
+  after_guide: context.guide,
   feedback_result: feedback,
   sufficient_evidence: true,
 }));
@@ -89,7 +87,7 @@ for (const item of traceSkillReviewItems) {
 await aionis.snapshot(snapshotInputFromGuideLoop({
   run_id: "run-001",
   task_signature: "first-integration",
-  guide,
+  guide: context.guide,
   measure_result: measure,
 }));
 ```
@@ -106,20 +104,21 @@ host to recover raw payload before exact use.
 For token-sensitive Agent calls, request compact prompt rendering:
 
 ```ts
-const compactGuide = await aionis.guide({
+const compactContext = await aionis.guideAgentContext({
   query_text: "Continue the task from the current accepted state.",
   consumer_agent_id: "agent-1",
   context_mode: "compact_agent",
+}, undefined, {
+  budget_profile: "compact",
 });
 
-const compactPrompt = compileExecutionAgentContext({
-  guide: compactGuide,
-  budget_profile: "compact",
-}).agent_prompt;
+const compactPrompt = compactContext.agent_prompt;
 ```
 
 `context_mode: "compact_agent"` keeps SDK guide defaults on the governed
-full-power path while shortening only `agent_context.prompt_text`.
+full-power path while shortening the final Agent prompt. `guideAgentContext()`
+also resolves recoverable `inspect_before_use` and `rehydrate` evidence before
+the prompt is handed to the Agent.
 
 ## Trace-Derived Skill Candidates
 
@@ -237,7 +236,7 @@ await aionis.execution.observeStep({
   target_files: ["src/checkout.ts"],
 });
 
-const guide = await aionis.execution.guideForRole({
+const context = await aionis.execution.guideAgentContextForRole({
   agent_id: "reviewer-1",
   team_id: "checkout-team",
   role: "reviewer",
@@ -245,14 +244,7 @@ const guide = await aionis.execution.guideForRole({
   task_signature: "checkout-migration",
   query_text: "Continue from the current verified execution path.",
   context_mode: "compact_agent",
-});
-
-const context = compileExecutionAgentContext({
-  guide,
-  task: {
-    task_signature: "checkout-migration",
-    query_text: "Continue from the current verified execution path.",
-  },
+}, undefined, {
   repo_state: {
     existing_files: ["src/checkout.ts"],
   },
@@ -268,14 +260,14 @@ const feedback = await aionis.execution.feedbackFromOutcome({
   title: "Reviewer continued branch",
   summary: "Reviewer used the current execution memory.",
   outcome: "succeeded",
-  guide,
-  used_memory_ids: guide.agent_context.use_now_memory_ids.slice(0, 1),
+  guide: context.guide,
+  used_memory_ids: context.guide.agent_context.use_now_memory_ids.slice(0, 1),
 });
 ```
 
-`compileExecutionAgentContext` is the recommended product path for coding and
-multi-agent hosts. It converts the governed Runtime `guide` into a contract
-prompt plus structured adapter state:
+`guideAgentContext()` is the recommended product path for coding and multi-agent
+hosts. It asks Runtime for a governed guide, resolves recoverable evidence
+pointers, and returns a contract prompt plus structured adapter state:
 
 - active route targets and pending artifacts
 - reference-only and blocked direction targets

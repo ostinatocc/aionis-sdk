@@ -27,10 +27,12 @@
     "node": ">=22.5.0"
   },
   "scripts": {
+    "source:sync": "node scripts/runtime-source.mjs sync",
+    "source:check": "node scripts/runtime-source.mjs check",
     "build": "tsc -p tsconfig.json",
     "test": "npm run build --silent && tsx --test test/*.test.ts",
     "verify:trace-to-skill": "node verification/trace-to-skill-candidate.mjs",
-    "prepack": "npm run build"
+    "prepack": "npm run source:check --silent && npm run build"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
