@@ -894,10 +894,65 @@ test("@aionis/sdk compact agent context keeps default full_power guide mode", as
     task_signature: "compact-agent",
     query_text: "Continue from current execution state.",
     context_mode: "compact_agent",
+    task_context_profile: "multi_agent_handoff",
+    guide: {
+      task_context_profile: "general",
+    },
   });
 
   assert.equal(calls[0]?.mode, "full_power");
   assert.equal(calls[0]?.context_mode, "compact_agent");
+  assert.equal(calls[0]?.task_context_profile, "multi_agent_handoff");
+});
+
+test("@aionis/sdk execution Agent context helper forwards task context profile", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const fakeFetch: typeof fetch = async (_input, init) => {
+    calls.push(JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>);
+    return new Response(JSON.stringify({
+      ok: true,
+      guide_trace_id: "guide-profile-1",
+      agent_context: {
+        contract_version: "aionis_agent_context_v1",
+        task_context_profile: "long_qa",
+        prompt_text: "AIONIS_CTX v2\nanswer from retained evidence.",
+        memory_ids: [],
+        use_now_memory_ids: [],
+        inspect_before_use_memory_ids: [],
+        rehydrate_memory_ids: [],
+      },
+      memory_decision_trace: {
+        memory_use_receipt: {
+          contract_version: "aionis_memory_use_receipt_v1",
+          use_now_memory_ids: [],
+          inspect_before_use_memory_ids: [],
+          do_not_use_memory_ids: [],
+          rehydrate_memory_ids: [],
+          attributed_memory_ids: [],
+          decision_summaries: [],
+        },
+      },
+    }), { status: 200 });
+  };
+  const client = createAionisClient({
+    baseUrl: "http://127.0.0.1:3001",
+    fetchImpl: fakeFetch,
+  });
+
+  const result = await client.execution.guideAgentContextForRole({
+    agent_id: "qa-agent",
+    run_id: "run-qa-001",
+    task_signature: "long-memory-qa",
+    query_text: "Answer from the retained source evidence.",
+    context_mode: "compact_agent",
+    task_context_profile: "long_qa",
+  });
+
+  assert.equal(calls[0]?.mode, "full_power");
+  assert.equal(calls[0]?.context_mode, "compact_agent");
+  assert.equal(calls[0]?.task_context_profile, "long_qa");
+  assert.equal(result.guide_trace_id, "guide-profile-1");
+  assert.match(result.agent_prompt, /AIONIS_CTX v2/);
 });
 
 test("@aionis/sdk execution helpers wrap observe, guide, feedback, measure, and snapshot", async () => {
