@@ -10,6 +10,19 @@ Source: [https://github.com/ostinatocc/aionis-sdk](https://github.com/ostinatocc
 npm install @aionis/sdk
 ```
 
+## Canonical AgentContext
+
+The recommended Agent-facing contract is `AgentContext.agent_prompt`:
+
+- `guideAgentContext()` for ordinary TypeScript hosts.
+- `execution.guideAgentContextForRole()` for role-aware execution memory.
+- `guide()` and `execution.guideForRole()` are lower-level guide contracts for
+  hosts that need to inspect Runtime fields before compiling their own surface.
+
+MCP, AIFS, and Claude Code integrations use the same SDK AgentContext renderer.
+Do not create another final-context adapter unless the product surface matrix is
+updated first.
+
 ```ts
 import {
   commandPostureFromGuide,
@@ -92,9 +105,8 @@ await aionis.snapshot(snapshotInputFromGuideLoop({
 }));
 ```
 
-Only pass `agentPrompt` or selected `agent_context` fields to your Agent. Keep
-packets, traces, receipts, admission records, raw slots, and operator snapshots
-in host logs.
+Pass `context.agent_prompt` to your Agent. Keep packets, traces, receipts,
+admission records, raw slots, and operator snapshots in host logs.
 Use `commandPostureFromGuide()` when the host wants structured execution
 instructions: `must_not` blocks failed or stale branches, `should_continue`
 biases the Agent toward active state or accepted procedure, `inspect_first`
@@ -200,7 +212,7 @@ for (const event of planEvents) {
   await aionis.execution.observeStep(event);
 }
 
-const guide = await aionis.execution.guideForRole({
+const planContext = await aionis.execution.guideAgentContextForRole({
   agent_id: "worker-1",
   role: "worker",
   run_id: "run-001",
@@ -208,6 +220,8 @@ const guide = await aionis.execution.guideForRole({
   query_text: "Implement the accepted plan without reusing rejected routes.",
   context_mode: "compact_agent",
 });
+
+// Your host runs the worker Agent with planContext.agent_prompt.
 ```
 
 The failed branch details are emitted as separate failed evidence instead of
@@ -265,9 +279,10 @@ const feedback = await aionis.execution.feedbackFromOutcome({
 });
 ```
 
-`guideAgentContext()` is the recommended product path for coding and multi-agent
-hosts. It asks Runtime for a governed guide, resolves recoverable evidence
-pointers, and returns a contract prompt plus structured adapter state:
+`guideAgentContext()` and `execution.guideAgentContextForRole()` are the
+recommended product paths for coding and multi-agent hosts. They ask Runtime for
+a governed guide, resolve recoverable evidence pointers, and return a contract
+prompt plus structured adapter state:
 
 - active route targets and pending artifacts
 - reference-only and blocked direction targets
@@ -349,13 +364,16 @@ const result = await aionis.governMemory({
   ],
 });
 
-const prompt = result.agent_context.prompt_text;
+const firewallPrompt = result.agent_context.prompt_text;
 const firewall = result.memory_firewall;
 ```
 
 `mode: "firewall"` blocks failed, stale, contested, suppressed, archived, or
 policy-blocked external memory from direct action. Unknown or untrusted memory
 stays `inspect_before_use`; raw evidence pointers stay `rehydrate`.
+This is the Memory Firewall prompt surface for external memory candidates; it is
+not the canonical task AgentContext. For normal task execution, use
+`guideAgentContext().agent_prompt`.
 
 ### Mem0 Drop-In Firewall
 
@@ -374,7 +392,7 @@ const governed = await aionis.governMem0SearchResults({
   mem0_results: mem0Results,
 });
 
-const promptForAgent = governed.agent_context.prompt_text;
+const firewallPromptForAgent = governed.agent_context.prompt_text;
 const receiptForLogs = governed.memory_use_receipt;
 const firewallForOps = governed.memory_firewall;
 ```
