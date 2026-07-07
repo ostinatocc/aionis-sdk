@@ -19,6 +19,12 @@ The recommended Agent-facing contract is `AgentContext.agent_prompt`:
 - `guide()` and `execution.guideForRole()` are lower-level guide contracts for
   hosts that need to inspect Runtime fields before compiling their own surface.
 
+By default, `agent_prompt` is the Runtime-governed compact
+`agent_context.prompt_text` (`AIONIS_CTX v2` / `compact_agent`). The SDK does
+not prepend a second execution-contract prompt. Structured receipts, command
+posture, route contracts, and resolved evidence stay available on the returned
+object for host logic and audit.
+
 MCP, AIFS, and Claude Code integrations use the same SDK AgentContext renderer.
 Do not create another final-context adapter unless the product surface matrix is
 updated first.
@@ -129,8 +135,9 @@ const compactPrompt = compactContext.agent_prompt;
 
 `context_mode: "compact_agent"` keeps SDK guide defaults on the governed
 full-power path while shortening the final Agent prompt. `guideAgentContext()`
-also resolves recoverable `inspect_before_use` and `rehydrate` evidence before
-the prompt is handed to the Agent.
+also resolves recoverable `inspect_before_use` and `rehydrate` evidence into
+`resolved_evidence`; include that evidence in the Agent prompt only with an
+explicit host choice.
 
 ## Trace-Derived Skill Candidates
 
@@ -281,8 +288,9 @@ const feedback = await aionis.execution.feedbackFromOutcome({
 
 `guideAgentContext()` and `execution.guideAgentContextForRole()` are the
 recommended product paths for coding and multi-agent hosts. They ask Runtime for
-a governed guide, resolve recoverable evidence pointers, and return a contract
-prompt plus structured adapter state:
+a governed guide, return the compact Runtime `agent_context.prompt_text` as
+`agent_prompt`, resolve recoverable evidence pointers, and expose structured
+adapter state:
 
 - active route targets and pending artifacts
 - reference-only and blocked direction targets
@@ -292,9 +300,8 @@ prompt plus structured adapter state:
 - warnings when a host-observed active target is missing
 
 This helper does not mutate Runtime state and does not expose raw packets to the
-Agent. If an active target is missing, the rendered contract tells the Agent to
-treat the target as pending work instead of falling back to a blocked or
-reference-only path that happens to exist.
+Agent. `compiled_context` is a program/audit surface for hosts that need route
+metadata, not a second default Agent prompt.
 
 For a host loop, the most common posture helpers are:
 
