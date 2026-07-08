@@ -19,11 +19,12 @@ The recommended Agent-facing contract is `AgentContext.agent_prompt`:
 - `guide()` and `execution.guideForRole()` are lower-level guide contracts for
   hosts that need to inspect Runtime fields before compiling their own surface.
 
-By default, `agent_prompt` is the Runtime-governed compact
-`agent_context.prompt_text` (`AIONIS_CTX v2` / `compact_agent`). The SDK does
-not prepend a second execution-contract prompt. Structured receipts, command
-posture, route contracts, and resolved evidence stay available on the returned
-object for host logic and audit.
+By default, `agent_prompt` is the SDK-rendered execution contract
+(`AIONIS_EXECUTION_AGENT_CONTEXT v1`) plus the Runtime base guide
+(`BASE_AIONIS_CONTEXT`). Structured receipts, command posture, route contracts,
+and resolved evidence stay available on the returned object for host logic and
+audit. `AIONIS_CTX v2` remains the Runtime compact guide text and is used as the
+final prompt only when a host explicitly opts into compact mode.
 
 MCP, AIFS, and Claude Code integrations use the same SDK AgentContext renderer.
 Do not create another final-context adapter unless the product surface matrix is
@@ -58,7 +59,6 @@ const context = await aionis.guideAgentContext({
   consumer_agent_id: "agent-1",
   limit: 8,
   include_packets: true,
-  context_mode: "compact_agent",
 }, undefined, {
   task: "Continue the task.",
   budget_profile: "balanced",
@@ -133,11 +133,11 @@ const compactContext = await aionis.guideAgentContext({
 const compactPrompt = compactContext.agent_prompt;
 ```
 
-`context_mode: "compact_agent"` keeps SDK guide defaults on the governed
-full-power path while shortening the final Agent prompt. `guideAgentContext()`
-also resolves recoverable `inspect_before_use` and `rehydrate` evidence into
-`resolved_evidence`; include that evidence in the Agent prompt only with an
-explicit host choice.
+`context_mode: "compact_agent"` switches the final Agent prompt to the Runtime
+compact guide text. `guideAgentContext()` also resolves recoverable
+`inspect_before_use` and `rehydrate` evidence into `resolved_evidence`;
+resolved evidence is included in the default SDK prompt and can be omitted with
+`include_resolved_evidence_in_prompt: false`.
 
 ## Trace-Derived Skill Candidates
 
@@ -225,7 +225,6 @@ const planContext = await aionis.execution.guideAgentContextForRole({
   run_id: "run-001",
   task_signature: "checkout-migration",
   query_text: "Implement the accepted plan without reusing rejected routes.",
-  context_mode: "compact_agent",
 });
 
 // Your host runs the worker Agent with planContext.agent_prompt.
@@ -264,7 +263,6 @@ const context = await aionis.execution.guideAgentContextForRole({
   run_id: "run-001",
   task_signature: "checkout-migration",
   query_text: "Continue from the current verified execution path.",
-  context_mode: "compact_agent",
 }, undefined, {
   repo_state: {
     existing_files: ["src/checkout.ts"],
@@ -288,9 +286,8 @@ const feedback = await aionis.execution.feedbackFromOutcome({
 
 `guideAgentContext()` and `execution.guideAgentContextForRole()` are the
 recommended product paths for coding and multi-agent hosts. They ask Runtime for
-a governed guide, return the compact Runtime `agent_context.prompt_text` as
-`agent_prompt`, resolve recoverable evidence pointers, and expose structured
-adapter state:
+a governed guide, compile the SDK execution AgentContext as `agent_prompt`,
+resolve recoverable evidence pointers, and expose structured adapter state:
 
 - active route targets and pending artifacts
 - reference-only and blocked direction targets

@@ -122,7 +122,7 @@ test("@aionis/sdk wraps product facade routes", async () => {
   assert.equal(calls[5]?.body.run_id, "run-1");
 });
 
-test("@aionis/sdk guideAgentContext returns the Runtime compact Agent prompt by default", async () => {
+test("@aionis/sdk guideAgentContext renders execution contract and resolved evidence by default", async () => {
   const inspectId = "11111111-1111-4111-8111-111111111111";
   const rehydrateId = "22222222-2222-4222-8222-222222222222";
   const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
@@ -137,6 +137,7 @@ test("@aionis/sdk guideAgentContext returns the Runtime compact Agent prompt by 
         guide_trace_id: "guide-trace-sdk",
         agent_context: {
           contract_version: "aionis_agent_context_v1",
+          agent_context_mode: "standard",
           prompt_text: "AIONIS_CTX v2\ncompact governed guide.",
           use_now_memory_ids: [],
           inspect_before_use_memory_ids: [inspectId],
@@ -181,7 +182,6 @@ test("@aionis/sdk guideAgentContext returns the Runtime compact Agent prompt by 
     query_text: "Continue with exact evidence.",
     consumer_agent_id: "worker-a",
     consumer_team_id: "team-a",
-    context_mode: "compact_agent",
   });
 
   assert.equal(result.contract_version, "aionis_sdk_agent_context_with_evidence_v1");
@@ -195,10 +195,12 @@ test("@aionis/sdk guideAgentContext returns the Runtime compact Agent prompt by 
   assert.equal(calls[1]?.body.include_slots, true);
   assert.match(String(calls[1]?.body.uri), /aionis:\/\/tenant-a\/scope-a\/event\//);
   assert.deepEqual(result.resolved_evidence.map((entry) => entry.surface), ["inspect_before_use", "rehydrate"]);
-  assert.equal(result.agent_prompt, "AIONIS_CTX v2\ncompact governed guide.");
-  assert.doesNotMatch(result.agent_prompt, /AIONIS_EXECUTION_AGENT_CONTEXT/);
-  assert.doesNotMatch(result.agent_prompt, /BASE_AIONIS_CONTEXT/);
-  assert.doesNotMatch(result.agent_prompt, /AIONIS_RESOLVED_EVIDENCE v1/);
+  assert.match(result.agent_prompt, /AIONIS_EXECUTION_AGENT_CONTEXT/);
+  assert.match(result.agent_prompt, /BASE_AIONIS_CONTEXT/);
+  assert.match(result.agent_prompt, /AIONIS_CTX v2/);
+  assert.match(result.agent_prompt, /AIONIS_RESOLVED_EVIDENCE v1/);
+  assert.match(result.agent_prompt, /INSPECT_EVIDENCE/);
+  assert.match(result.agent_prompt, /REHYDRATE_EVIDENCE/);
   assert.equal(result.resolved_evidence.some((entry) => entry.evidence_text.includes("INSPECT_EVIDENCE")), true);
   assert.equal(result.resolved_evidence.some((entry) => entry.evidence_text.includes("REHYDRATE_EVIDENCE")), true);
   assert.equal(result.unresolved_memory_ids.length, 0);
