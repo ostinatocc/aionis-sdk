@@ -594,6 +594,20 @@ test("@aionis/sdk compiles a contract-style execution Agent context", () => {
           instruction: "Continue the bundledDev migration.",
           reason: "Accepted active route.",
           target_files: ["packages/vite/src/node/server/bundledDev.ts"],
+          workflow_steps: [
+            "Create the replacement route in the current target file.",
+            "Run the focused regression command before reporting done.",
+          ],
+          acceptance_checks: [
+            "Focused regression command exits successfully.",
+            "The legacy reference file is not edited as the primary route.",
+          ],
+          verification_summary: [
+            "last verifier passed on the focused regression command",
+          ],
+          artifact_hints: [
+            "patch artifact exists for the current target file",
+          ],
         },
         {
           posture: "inspect_first",
@@ -610,6 +624,12 @@ test("@aionis/sdk compiles a contract-style execution Agent context", () => {
           instruction: "Do not implement the old fullBundleEnvironment route.",
           reason: "Failed branch.",
           target_files: ["packages/vite/src/node/server/environments/fullBundleEnvironment.ts"],
+          acceptance_checks: [
+            "Do not treat this failed check as an active acceptance route.",
+          ],
+          verification_summary: [
+            "legacy route failed focused regression",
+          ],
         },
         {
           posture: "rehydrate_first",
@@ -695,6 +715,17 @@ test("@aionis/sdk compiles a contract-style execution Agent context", () => {
   assert.equal(compiled.execution_warnings[0]?.code, "missing_active_target");
   assert.match(compiled.agent_prompt, /AIONIS_EXECUTION_AGENT_CONTEXT v1/);
   assert.match(compiled.agent_prompt, /If an active target is missing, treat it as pending work/);
+  assert.match(compiled.agent_prompt, /ROUTE_STEPS/);
+  assert.match(compiled.agent_prompt, /Create the replacement route/);
+  assert.match(compiled.agent_prompt, /ACCEPTANCE_CHECKS/);
+  assert.match(compiled.agent_prompt, /Focused regression command exits successfully/);
+  assert.match(compiled.agent_prompt, /VERIFY_BEFORE_DONE/);
+  assert.match(compiled.agent_prompt, /last verifier passed/);
+  assert.match(compiled.agent_prompt, /ARTIFACT_HINTS/);
+  assert.match(compiled.agent_prompt, /patch artifact exists/);
+  assert.match(compiled.agent_prompt, /KNOWN_FAILED_BRANCHES/);
+  assert.match(compiled.agent_prompt, /legacy route failed focused regression/);
+  assert.doesNotMatch(compiled.agent_prompt, /Do not treat this failed check as an active acceptance route/);
   assert.match(compiled.agent_prompt, /packages\/vite\/src\/node\/server\/bundledDev\.ts/);
   assert.match(compiled.agent_prompt, /BLOCKED_DIRECTION_TARGETS/);
   assert.match(compiled.agent_prompt, /fullBundleEnvironment\.ts/);
@@ -957,7 +988,8 @@ test("@aionis/sdk execution Agent context helper forwards task context profile",
   assert.equal(calls[0]?.context_mode, "compact_agent");
   assert.equal(calls[0]?.task_context_profile, "long_qa");
   assert.equal(result.guide_trace_id, "guide-profile-1");
-  assert.match(result.agent_prompt, /AIONIS_CTX v2/);
+  assert.match(result.agent_prompt, /AIONIS_EXECUTION_AGENT_CONTEXT v1/);
+  assert.doesNotMatch(result.agent_prompt, /BASE_AIONIS_CONTEXT/);
 });
 
 test("@aionis/sdk execution helpers wrap observe, guide, feedback, measure, and snapshot", async () => {
