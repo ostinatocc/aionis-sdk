@@ -22,9 +22,18 @@ The recommended Agent-facing contract is `AgentContext.agent_prompt`:
 By default, `agent_prompt` is the SDK-rendered execution contract
 (`AIONIS_EXECUTION_AGENT_CONTEXT v1`). Structured receipts, command posture,
 route contracts, and resolved evidence stay available on the returned object for
-host logic and audit. `AIONIS_CTX v2` remains the Runtime compact guide text
-(`agent_context.prompt_text`) and is used as the final prompt only when a host
-explicitly sets `prompt_format: "runtime_compact"`.
+host logic and audit.
+
+Runtime `agent_context.prompt_text` has its own renderings:
+
+| Runtime mode | Header | Use |
+|---|---|---|
+| standard | `AIONIS_AGENT_CONTEXT v1` | Raw HTTP hosts that pass Runtime guide text directly. |
+| compact | `AIONIS_CTX v2` | Explicit low-token Runtime prompt mode. |
+
+Do not append Runtime `agent_context.prompt_text` to SDK `agent_prompt`.
+`AIONIS_CTX v2` is used as the SDK final prompt only when a host explicitly
+sets `prompt_format: "runtime_compact"`.
 
 MCP, AIFS, and Claude Code integrations use the same SDK AgentContext renderer.
 Do not create another final-context adapter unless the product surface matrix is
@@ -119,7 +128,8 @@ biases the Agent toward active state or accepted procedure, `inspect_first`
 keeps candidate history out of direct action, and `rehydrate_first` asks the
 host to recover raw payload before exact use.
 
-For token-sensitive Agent calls, request compact prompt rendering:
+For token-sensitive Agent calls, request compact Runtime guide rendering and a
+compact SDK execution contract:
 
 ```ts
 const compactContext = await aionis.guideAgentContext({
@@ -133,11 +143,13 @@ const compactContext = await aionis.guideAgentContext({
 const compactPrompt = compactContext.agent_prompt;
 ```
 
-`context_mode: "compact_agent"` switches the final Agent prompt to the Runtime
-compact guide text. `guideAgentContext()` also resolves recoverable
-`inspect_before_use` and `rehydrate` evidence into `resolved_evidence`;
-resolved evidence is included in the default SDK prompt and can be omitted with
-`include_resolved_evidence_in_prompt: false`.
+`context_mode: "compact_agent"` asks Runtime for compact guide context; the SDK
+final Agent prompt still defaults to `AIONIS_EXECUTION_AGENT_CONTEXT v1`. Set
+`prompt_format: "runtime_compact"` only when the host intentionally wants the
+Runtime compact guide text as the final prompt. `guideAgentContext()` also
+resolves recoverable `inspect_before_use` and `rehydrate` evidence into
+`resolved_evidence`; resolved evidence is included in the default SDK prompt and
+can be omitted with `include_resolved_evidence_in_prompt: false`.
 
 ## Trace-Derived Skill Candidates
 
