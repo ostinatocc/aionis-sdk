@@ -196,14 +196,42 @@ test("@aionis/sdk guideAgentContext renders execution contract and resolved evid
   assert.match(String(calls[1]?.body.uri), /aionis:\/\/tenant-a\/scope-a\/event\//);
   assert.deepEqual(result.resolved_evidence.map((entry) => entry.surface), ["inspect_before_use", "rehydrate"]);
   assert.match(result.agent_prompt, /AIONIS_EXECUTION_AGENT_CONTEXT/);
-  assert.match(result.agent_prompt, /BASE_AIONIS_CONTEXT/);
-  assert.match(result.agent_prompt, /AIONIS_CTX v2/);
+  assert.doesNotMatch(result.agent_prompt, /BASE_AIONIS_CONTEXT/);
+  assert.doesNotMatch(result.agent_prompt, /AIONIS_CTX v2/);
   assert.match(result.agent_prompt, /AIONIS_RESOLVED_EVIDENCE v1/);
   assert.match(result.agent_prompt, /INSPECT_EVIDENCE/);
   assert.match(result.agent_prompt, /REHYDRATE_EVIDENCE/);
   assert.equal(result.resolved_evidence.some((entry) => entry.evidence_text.includes("INSPECT_EVIDENCE")), true);
   assert.equal(result.resolved_evidence.some((entry) => entry.evidence_text.includes("REHYDRATE_EVIDENCE")), true);
   assert.equal(result.unresolved_memory_ids.length, 0);
+});
+
+test("@aionis/sdk guideAgentContext can return Runtime compact prompt without stacking SDK contract", async () => {
+  const runtimePrompt = "AIONIS_CTX v2\nstate r=agent h=1 a=1 p=act auth=ok risk=lo\ncurrent: note=continue accepted route";
+  const fakeFetch: typeof fetch = async () =>
+    new Response(JSON.stringify({
+      ok: true,
+      guide_trace_id: "guide-compact-runtime",
+      agent_context: {
+        prompt_text: runtimePrompt,
+        memory_ids: [],
+      },
+    }), { status: 200 });
+  const client = createAionisClient({
+    baseUrl: "http://127.0.0.1:3001",
+    fetchImpl: fakeFetch,
+  });
+
+  const result = await client.guideAgentContext({
+    query_text: "Continue compact.",
+  }, undefined, {
+    prompt_format: "runtime_compact",
+  });
+
+  assert.equal(result.compiled_context.prompt_format, "runtime_compact");
+  assert.equal(result.agent_prompt, runtimePrompt);
+  assert.doesNotMatch(result.agent_prompt, /AIONIS_EXECUTION_AGENT_CONTEXT/);
+  assert.doesNotMatch(result.agent_prompt, /BASE_AIONIS_CONTEXT/);
 });
 
 test("@aionis/sdk exposes trace-derived skill candidates from measure reports", () => {
@@ -713,6 +741,7 @@ test("@aionis/sdk compiles a contract-style execution Agent context", () => {
   assert.deepEqual(compiled.reference_only_targets, ["packages/vite/src/node/server/environments/fullBundleEnvironment.ts"]);
   assert.deepEqual(compiled.blocked_direction_targets, ["packages/vite/src/node/server/environments/fullBundleEnvironment.ts"]);
   assert.equal(compiled.execution_warnings[0]?.code, "missing_active_target");
+  assert.equal(compiled.prompt_format, "contract");
   assert.match(compiled.agent_prompt, /AIONIS_EXECUTION_AGENT_CONTEXT v1/);
   assert.match(compiled.agent_prompt, /If an active target is missing, treat it as pending work/);
   assert.match(compiled.agent_prompt, /ROUTE_STEPS/);
@@ -729,7 +758,8 @@ test("@aionis/sdk compiles a contract-style execution Agent context", () => {
   assert.match(compiled.agent_prompt, /packages\/vite\/src\/node\/server\/bundledDev\.ts/);
   assert.match(compiled.agent_prompt, /BLOCKED_DIRECTION_TARGETS/);
   assert.match(compiled.agent_prompt, /fullBundleEnvironment\.ts/);
-  assert.match(compiled.agent_prompt, /BASE_AIONIS_CONTEXT/);
+  assert.doesNotMatch(compiled.agent_prompt, /BASE_AIONIS_CONTEXT/);
+  assert.doesNotMatch(compiled.agent_prompt, /AIONIS_CTX v2/);
   assert.deepEqual(rehydrateHintsFromGuide(guide), [{
     memory_id: "mem-archive",
     reason: "Exact accepted patch payload is archived.",
@@ -754,9 +784,11 @@ test("@aionis/sdk compiles a contract-style execution Agent context", () => {
   assert.equal(compiled.memory_admission_record.scope, "default");
   assert.equal(compiled.memory_admission_record.candidate_memory_count, 4);
 
-  const coding = compileCodingAgentContext({ guide, include_base_prompt: false, max_prompt_chars: 2_000 });
-  assert.equal(coding.base_prompt, guide.agent_context.prompt_text);
-  assert.doesNotMatch(coding.agent_prompt, /BASE_AIONIS_CONTEXT/);
+  const compact = compileCodingAgentContext({ guide, prompt_format: "runtime_compact", max_prompt_chars: 2_000 });
+  assert.equal(compact.prompt_format, "runtime_compact");
+  assert.equal(compact.base_prompt, guide.agent_context.prompt_text);
+  assert.equal(compact.agent_prompt, guide.agent_context.prompt_text);
+  assert.doesNotMatch(compact.agent_prompt, /AIONIS_EXECUTION_AGENT_CONTEXT/);
 });
 
 test("@aionis/sdk exports admission dataset rows and JSONL without prompt payload", () => {

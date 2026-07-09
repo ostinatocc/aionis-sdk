@@ -20,11 +20,11 @@ The recommended Agent-facing contract is `AgentContext.agent_prompt`:
   hosts that need to inspect Runtime fields before compiling their own surface.
 
 By default, `agent_prompt` is the SDK-rendered execution contract
-(`AIONIS_EXECUTION_AGENT_CONTEXT v1`) plus the Runtime base guide
-(`BASE_AIONIS_CONTEXT`). Structured receipts, command posture, route contracts,
-and resolved evidence stay available on the returned object for host logic and
-audit. `AIONIS_CTX v2` remains the Runtime compact guide text and is used as the
-final prompt only when a host explicitly opts into compact mode.
+(`AIONIS_EXECUTION_AGENT_CONTEXT v1`). Structured receipts, command posture,
+route contracts, and resolved evidence stay available on the returned object for
+host logic and audit. `AIONIS_CTX v2` remains the Runtime compact guide text
+(`agent_context.prompt_text`) and is used as the final prompt only when a host
+explicitly sets `prompt_format: "runtime_compact"`.
 
 MCP, AIFS, and Claude Code integrations use the same SDK AgentContext renderer.
 Do not create another final-context adapter unless the product surface matrix is
