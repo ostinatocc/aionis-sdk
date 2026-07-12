@@ -10,6 +10,12 @@ Source: [https://github.com/ostinatocc/aionis-sdk](https://github.com/ostinatocc
 npm install @aionis/sdk
 ```
 
+SDK `0.3.15` is the client for the Aionis Runtime `v0.3.5` Local Runtime Public
+Beta candidate. It adds typed durable observe/handoff write receipts,
+post-commit projection scheduling, and Runtime-owned measure evidence
+assessment. This is a beta contract for a single self-hosted Runtime process,
+not a GA managed or multi-instance HA contract.
+
 ## Canonical AgentContext
 
 The recommended Agent-facing contract is `AgentContext.agent_prompt`:
@@ -54,6 +60,7 @@ import {
   snapshotInputFromGuideLoop,
   traceDerivedSkillCandidatesFromMeasure,
   traceDerivedSkillReviewItemsFromMeasure,
+  type AionisObserveResult,
 } from "@aionis/sdk";
 
 const aionis = createAionisClient({
@@ -99,17 +106,19 @@ const measure = await aionis.measure(measureInputFromGuideLoop({
   },
   after_guide: context.guide,
   feedback_result: feedback,
-  sufficient_evidence: true,
 }));
 
-const traceSkillCandidates = traceDerivedSkillCandidatesFromMeasure(measure);
-for (const candidate of traceSkillCandidates) {
-  console.log(candidate.trace_derived_skill.skill_name);
-}
+console.log(measure.evidence_assessment);
+if (measure.evidence_assessment.eligible_for_skill_export) {
+  const traceSkillCandidates = traceDerivedSkillCandidatesFromMeasure(measure);
+  for (const candidate of traceSkillCandidates) {
+    console.log(candidate.trace_derived_skill.skill_name);
+  }
 
-const traceSkillReviewItems = traceDerivedSkillReviewItemsFromMeasure(measure);
-for (const item of traceSkillReviewItems) {
-  console.log(item.skill_name, item.review_action, item.safety.required_gate);
+  const traceSkillReviewItems = traceDerivedSkillReviewItemsFromMeasure(measure);
+  for (const item of traceSkillReviewItems) {
+    console.log(item.skill_name, item.review_action, item.safety.required_gate);
+  }
 }
 
 await aionis.snapshot(snapshotInputFromGuideLoop({
@@ -151,11 +160,41 @@ resolves recoverable `inspect_before_use` and `rehydrate` evidence into
 `resolved_evidence`; resolved evidence is included in the default SDK prompt and
 can be omitted with `include_resolved_evidence_in_prompt: false`.
 
+## Durable Writes And Evidence Assessment
+
+Supply one `operation_id` for each logical execution write and reuse it only to
+retry the exact same request:
+
+```ts
+const observed = await aionis.execution.observeStep<AionisObserveResult>({
+  operation_id: "observe:run-001:worker-1:step-1",
+  agent_id: "worker-1",
+  run_id: "run-001",
+  task_signature: "checkout-migration",
+  title: "Implement checkout adapter",
+  summary: "The adapter is implemented and ready for review.",
+  outcome: "succeeded",
+});
+
+console.log(observed.operation_id, observed.post_commit_projections);
+```
+
+The Runtime stores the receipt with the semantic write. An exact retry returns
+that receipt; using the same ID for different content returns HTTP `409`.
+`embedding: "scheduled"` or `ann_sync: "scheduled"` means a durable projection
+job exists, not that the external side effect is already complete.
+
+For `/v1/measure`, client fields `sufficient_evidence` and `evidence_ids` are
+compatibility claims only. They are recorded under
+`evidence_assessment.client_claims_ignored` and cannot make a manual measure
+export-ready. Gate learning and skill export on the Runtime-owned
+`evidence_assessment.eligible_for_skill_export` field.
+
 ## Trace-Derived Skill Candidates
 
-When `/v1/measure` has enough positive continuity or workflow-reuse evidence,
-Aionis can expose `trace_derived_skill` entries inside
-`effect_report.training_candidates`.
+When `/v1/measure` has Runtime-verified positive continuity or workflow-reuse
+evidence and `eligible_for_skill_export` is true, Aionis can expose
+`trace_derived_skill` entries inside `effect_report.training_candidates`.
 
 These are controlled training assets, not prompt instructions. The product
 path is:
