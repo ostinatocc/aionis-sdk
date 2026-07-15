@@ -10,11 +10,12 @@ Source: [https://github.com/ostinatocc/aionis-sdk](https://github.com/ostinatocc
 npm install @aionis/sdk
 ```
 
-SDK `0.3.15` is the client for the Aionis Runtime `v0.3.5` Local Runtime Public
-Beta candidate. It adds typed durable observe/handoff write receipts,
-post-commit projection scheduling, and Runtime-owned measure evidence
-assessment. This is a beta contract for a single self-hosted Runtime process,
-not a GA managed or multi-instance HA contract.
+SDK `0.3.16` is the client for the Aionis Runtime `v0.3.7` Local Runtime Public
+Beta candidate. It adds canonical host-task envelopes, strict host-use feedback
+receipts, and protected guide/feedback operation identity while retaining typed
+durable writes and Runtime-owned evidence assessment. This is a beta contract
+for a single self-hosted Runtime process, not a GA managed or multi-instance HA
+contract.
 
 ## Canonical AgentContext
 
@@ -159,6 +160,76 @@ Runtime compact guide text as the final prompt. `guideAgentContext()` also
 resolves recoverable `inspect_before_use` and `rehydrate` evidence into
 `resolved_evidence`; resolved evidence is included in the default SDK prompt and
 can be omitted with `include_resolved_evidence_in_prompt: false`.
+
+## Formal Host-Use Evidence
+
+Instrumented hosts and deterministic scorers can submit evidence-bound feedback
+with the Runtime-owned `host_task_envelope_v1` and `host_use_receipt_v1`
+contracts. Build the task envelope before guide, give guide its own protected
+`operation_id`, then build the use receipt after execution with a separate
+feedback operation ID:
+
+```ts
+import {
+  buildHostTaskEnvelopeV1,
+  buildHostUseReceiptV1,
+  feedbackFromGuide,
+  hostTaskEnvelopeDigest,
+} from "@aionis/sdk";
+
+const taskEnvelope = buildHostTaskEnvelopeV1({
+  contract_version: "host_task_envelope_v1",
+  host_task_id: "task-001",
+  collector_id: "my-instrumented-host",
+  collector_version: "1.0.0",
+  task_family: "coding",
+  task_signature: "checkout-migration",
+  repository_signature: "repo:checkout-service",
+  source_task_sha256: sourceTaskSha256,
+  source_event_sha256: sourceEventSha256,
+  created_at: new Date().toISOString(),
+});
+
+const guide = await aionis.guide({
+  query_text: "Continue the checkout migration.",
+  operation_id: "guide:task-001:attempt-1",
+  host_task_envelope_v1: taskEnvelope,
+});
+
+const feedbackOperationId = "feedback:task-001:attempt-1";
+const receipt = buildHostUseReceiptV1({
+  contract_version: "host_use_receipt_v1",
+  receipt_id: "receipt:task-001:attempt-1",
+  guide_trace_id: guide.guide_trace_id,
+  episode_id: canonicalEpisodeId,
+  operation_id: feedbackOperationId,
+  run_id: "run-001",
+  host_task_id: taskEnvelope.host_task_id,
+  host_task_envelope_sha256: hostTaskEnvelopeDigest(taskEnvelope),
+  collector_id: taskEnvelope.collector_id,
+  collector_version: taskEnvelope.collector_version,
+  host_trace_sha256: hostTraceSha256,
+  observed_at: new Date().toISOString(),
+  items: verifiedUseItems,
+});
+
+await aionis.feedback(feedbackFromGuide({
+  guide,
+  operation_id: feedbackOperationId,
+  host_use_receipt_v1: receipt,
+  reason: "The deterministic acceptance checks passed.",
+  run_id: "run-001",
+  outcome: "positive",
+  used_memory_ids: receipt.items.map((item) => item.memory_id),
+}));
+```
+
+`buildHostUseReceiptV1()` canonicalizes receipt item order and binds its digest.
+`feedbackFromGuide()` then requires exact agreement across guide identity,
+canonical episode ID, run, operation, memory set, served surface, outcome, and
+verifier result. Receipts carry hashes and references, not raw evidence. Use the
+ordinary feedback path for hosts that cannot independently produce this
+evidence; do not synthesize a formal receipt from an uninstrumented run.
 
 ## Durable Writes And Evidence Assessment
 
