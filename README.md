@@ -10,12 +10,14 @@ Source: [https://github.com/ostinatocc/aionis-sdk](https://github.com/ostinatocc
 npm install @aionis/sdk
 ```
 
-SDK `0.3.16` is the client for the Aionis Runtime `v0.3.7` Local Runtime Public
-Beta candidate. It adds canonical host-task envelopes, strict host-use feedback
-receipts, and protected guide/feedback operation identity while retaining typed
-durable writes and Runtime-owned evidence assessment. This is a beta contract
-for a single self-hosted Runtime process, not a GA managed or multi-instance HA
-contract.
+SDK `0.3.17` is the client for the Aionis Runtime `v0.3.8` Local Runtime Public
+Beta candidate. It adds exact persisted guide-feedback attribution, canonical
+host-task envelopes, strict host-use feedback receipts, and protected
+guide/feedback operation identity while retaining typed durable writes and
+Runtime-owned evidence assessment. This is a beta contract for a single
+self-hosted Runtime process, not a GA managed or multi-instance HA contract.
+`feedbackFromGuide()` requires Runtime-provided `feedback_attribution_v1`;
+refresh cached guides created by older Runtime contracts before feedback.
 
 ## Canonical AgentContext
 
@@ -50,6 +52,7 @@ updated first.
 import {
   commandPostureFromGuide,
   createAionisClient,
+  feedbackAttributionFromGuide,
   feedbackFromGuide,
   mem0SearchResultsToAionisCandidates,
   memoryAdmissionDatasetJsonlFromGuide,
@@ -91,13 +94,20 @@ const admissionDatasetJsonl = memoryAdmissionDatasetJsonlFromGuide(context.guide
   task_signature: "first-integration",
 });
 
-const feedback = await aionis.feedback(feedbackFromGuide({
-  guide: context.guide,
-  reason: "Agent used the exposed memory successfully.",
-  run_id: "run-001",
-  outcome: "positive",
-  used_memory_ids: context.guide.agent_context.use_now_memory_ids.slice(0, 1),
-}));
+const feedbackSource = feedbackAttributionFromGuide(context.guide);
+if (feedbackSource.status !== "available") {
+  throw new Error("Request a new guide before submitting learning feedback.");
+}
+const agentRun = await runYourInstrumentedAgent(agentPrompt);
+const feedback = agentRun.used_memory_ids.length === 0
+  ? null
+  : await aionis.feedback(feedbackFromGuide({
+      guide: context.guide,
+      reason: "Agent used the attributed memory successfully.",
+      run_id: "run-001",
+      outcome: "positive",
+      used_memory_ids: agentRun.used_memory_ids,
+    }));
 
 const measure = await aionis.measure(measureInputFromGuideLoop({
   task: {
@@ -129,6 +139,13 @@ await aionis.snapshot(snapshotInputFromGuideLoop({
   measure_result: measure,
 }));
 ```
+
+`feedback_attribution_v1.items` is the persisted eligibility/source projection,
+not proof that the Agent used every listed memory. Populate `used_memory_ids`
+only from host execution instrumentation. `feedbackFromGuide()` validates those
+observations against the exact persisted item and served surface; it never falls
+back to `agent_context`, and a context-only continuity handoff is rejected
+locally. A missing or unavailable attribution requires a new compatible guide.
 
 Pass `context.agent_prompt` to your Agent. Keep packets, traces, receipts,
 admission records, raw slots, and operator snapshots in host logs.
@@ -173,6 +190,7 @@ feedback operation ID:
 import {
   buildHostTaskEnvelopeV1,
   buildHostUseReceiptV1,
+  feedbackAttributionFromGuide,
   feedbackFromGuide,
   hostTaskEnvelopeDigest,
 } from "@aionis/sdk";
@@ -195,13 +213,17 @@ const guide = await aionis.guide({
   operation_id: "guide:task-001:attempt-1",
   host_task_envelope_v1: taskEnvelope,
 });
+const attribution = feedbackAttributionFromGuide(guide);
+if (attribution.status !== "available") {
+  throw new Error("Request a new guide before submitting learning feedback.");
+}
 
 const feedbackOperationId = "feedback:task-001:attempt-1";
 const receipt = buildHostUseReceiptV1({
   contract_version: "host_use_receipt_v1",
   receipt_id: "receipt:task-001:attempt-1",
   guide_trace_id: guide.guide_trace_id,
-  episode_id: canonicalEpisodeId,
+  episode_id: attribution.episode_id,
   operation_id: feedbackOperationId,
   run_id: "run-001",
   host_task_id: taskEnvelope.host_task_id,
@@ -227,9 +249,11 @@ await aionis.feedback(feedbackFromGuide({
 `buildHostUseReceiptV1()` canonicalizes receipt item order and binds its digest.
 `feedbackFromGuide()` then requires exact agreement across guide identity,
 canonical episode ID, run, operation, memory set, served surface, outcome, and
-verifier result. Receipts carry hashes and references, not raw evidence. Use the
-ordinary feedback path for hosts that cannot independently produce this
-evidence; do not synthesize a formal receipt from an uninstrumented run.
+verifier result. Every receipt item must also match an exact persisted item and
+served surface in `feedback_attribution_v1`. Receipts carry hashes and
+references, not raw evidence. Use the ordinary feedback path for hosts that
+cannot independently produce this evidence; do not synthesize a formal receipt
+from an uninstrumented run.
 
 ## Durable Writes And Evidence Assessment
 
@@ -393,6 +417,7 @@ const context = await aionis.execution.guideAgentContextForRole({
 });
 
 // Your host runs the Agent with context.agent_prompt.
+const agentRun = await runYourInstrumentedAgent(context.agent_prompt);
 
 const feedback = await aionis.execution.feedbackFromOutcome({
   agent_id: "reviewer-1",
@@ -402,7 +427,7 @@ const feedback = await aionis.execution.feedbackFromOutcome({
   summary: "Reviewer used the current execution memory.",
   outcome: "succeeded",
   guide: context.guide,
-  used_memory_ids: context.guide.agent_context.use_now_memory_ids.slice(0, 1),
+  used_memory_ids: agentRun.used_memory_ids,
 });
 ```
 
@@ -567,7 +592,8 @@ const replay = await aionis.flightRecorder({
   feedback_result: {
     run_id: "run-001",
     outcome: "positive",
-    used_memory_ids: guide.agent_context.use_now_memory_ids.slice(0, 1),
+    // Exact IDs recorded as dereferenced by the instrumented Agent/host trace.
+    used_memory_ids: instrumentedAgentRun.used_memory_ids,
   },
 });
 
