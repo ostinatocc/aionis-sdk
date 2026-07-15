@@ -67,6 +67,41 @@ function standaloneLearningEpisodeId(tenantId: string, scope: string, guideTrace
   return `lep_${createHash("sha256").update(canonical).digest("hex")}`;
 }
 
+function standaloneFeedbackAttribution(
+  tenantId: string,
+  scope: string,
+  guideTraceId: string,
+  inputItems: Array<{
+    memory_id: string;
+    served_surface: "use_now" | "inspect_before_use" | "do_not_use" | "rehydrate";
+  }>,
+) {
+  const items = [...inputItems].sort((left, right) =>
+    Buffer.compare(Buffer.from(left.memory_id, "utf8"), Buffer.from(right.memory_id, "utf8"))
+  );
+  const identity = JSON.stringify({
+    guide_trace_id: guideTraceId,
+    scope,
+    tenant_id: tenantId,
+  });
+  const servedSurface = JSON.stringify(items.map((item) => ({
+    action: item.served_surface,
+    memory_id: item.memory_id,
+  })));
+  return {
+    contract_version: "aionis_guide_feedback_attribution_v1" as const,
+    status: "available" as const,
+    guide_trace_id: guideTraceId,
+    episode_id: `lep_${createHash("sha256").update(identity).digest("hex")}`,
+    exposure_event_id: `lexposure_${createHash("sha256").update(identity).digest("hex")}`,
+    item_set_sha256: createHash("sha256").update(JSON.stringify(items)).digest("hex"),
+    served_surface_sha256: createHash("sha256").update(servedSurface).digest("hex"),
+    projection_complete: true,
+    projection_incomplete_reason_codes: [],
+    items,
+  };
+}
+
 function standaloneReceiptItem(memoryId: string, overrides: Record<string, unknown> = {}) {
   return {
     memory_id: memoryId,
@@ -317,6 +352,16 @@ test("@aionis/sdk binds formal feedback to an independently protected operation"
     tenant_id: "standalone-tenant",
     scope: "standalone-scope",
     guide_trace_id: "standalone-sdk-receipt-guide-1",
+    feedback_attribution_v1: standaloneFeedbackAttribution(
+      "standalone-tenant",
+      "standalone-scope",
+      "standalone-sdk-receipt-guide-1",
+      [
+        { memory_id: "standalone-memory-a", served_surface: "use_now" },
+        { memory_id: "standalone-memory-b", served_surface: "use_now" },
+        { memory_id: "standalone-inspect", served_surface: "inspect_before_use" },
+      ],
+    ),
     agent_context: {
       contract_version: "aionis_agent_context_v1",
       memory_ids: ["standalone-memory-a", "standalone-memory-b", "standalone-inspect"],
@@ -687,8 +732,20 @@ test("@aionis/sdk builds plan asset observe events", () => {
 
 test("@aionis/sdk guide helpers keep Agent prompt and feedback attribution bounded", () => {
   const guide = {
+    tenant_id: "tenant-guide-helper",
+    scope: "scope-guide-helper",
     guide_trace_id: "guide-1",
     consumer_agent_id: "sdk-agent",
+    feedback_attribution_v1: standaloneFeedbackAttribution(
+      "tenant-guide-helper",
+      "scope-guide-helper",
+      "guide-1",
+      [
+        { memory_id: "mem-1", served_surface: "use_now" },
+        { memory_id: "mem-2", served_surface: "inspect_before_use" },
+        { memory_id: "mem-3", served_surface: "do_not_use" },
+      ],
+    ),
     agent_context: {
       contract_version: "aionis_agent_context_v1",
       prompt_text: "AIONIS_CTX v2\ncurrent: n=Use scoped memory.",
@@ -838,7 +895,7 @@ test("@aionis/sdk guide helpers keep Agent prompt and feedback attribution bound
       outcome: "positive",
       used_memory_ids: ["mem-4"],
     }),
-    /not exposed by guide/,
+    /guide_feedback_unknown_memory/,
   );
 });
 
@@ -1268,7 +1325,15 @@ test("@aionis/sdk execution helpers wrap observe, guide, feedback, measure, and 
     calls.push({ url: String(input), body });
     return new Response(JSON.stringify({
       ok: true,
+      tenant_id: "tenant-a",
+      scope: "scope-a",
       guide_trace_id: "guide-exec-1",
+      feedback_attribution_v1: standaloneFeedbackAttribution(
+        "tenant-a",
+        "scope-a",
+        "guide-exec-1",
+        [{ memory_id: "mem-exec-1", served_surface: "use_now" }],
+      ),
       agent_context: {
         prompt_text: "AIONIS_CTX v2\ncurrent use_now=passed branch",
         memory_ids: ["mem-exec-1"],
@@ -1391,4 +1456,38 @@ test("@aionis/sdk execution helpers wrap observe, guide, feedback, measure, and 
     undefined,
   );
   assert.equal((calls[5]?.body.agent_context as Record<string, unknown>).prompt_text, "AIONIS_CTX v2\ncurrent use_now=passed branch");
+});
+
+test("@aionis/sdk execution feedback cannot bypass exact attribution with guide_trace_id alone", async () => {
+  let fetchCalls = 0;
+  const client = createAionisClient({
+    baseUrl: "http://127.0.0.1:3001",
+    tenant_id: "tenant-a",
+    scope: "scope-a",
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    },
+  });
+
+  await assert.rejects(
+    client.execution.feedbackFromOutcome({
+      agent_id: "reviewer-1",
+      run_id: "run-guide-trace-only",
+      task_signature: "guide-trace-only",
+      title: "Reject guide trace only feedback",
+      summary: "A trace id is not proof of an exact persisted exposure item.",
+      outcome: "succeeded",
+      guide_trace_id: "guide-trace-only",
+      used_memory_ids: ["memory-context-only"],
+    }),
+    (error: unknown) => {
+      assert.equal(
+        (error as { code?: string }).code,
+        "guide_feedback_attribution_missing",
+      );
+      return true;
+    },
+  );
+  assert.equal(fetchCalls, 0);
 });
