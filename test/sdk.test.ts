@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import test from "node:test";
 import {
+  type AionisMeasureResult,
   activeRouteTargetsFromGuide,
   agentPromptFromGuide,
   blockedDirectionRouteTargetsFromGuide,
@@ -25,6 +26,7 @@ import {
   memoryAdmissionRecordFromGuide,
   memoryIdsFromGuide,
   memoryUseReceiptFromGuide,
+  measureInputFromGuideLoop,
   mustNotMemoryIdsFromGuide,
   pendingArtifactTargetsFromGuide,
   parseHostTaskEnvelopeV1,
@@ -1325,6 +1327,7 @@ test("@aionis/sdk execution helpers wrap observe, guide, feedback, measure, and 
     calls.push({ url: String(input), body });
     return new Response(JSON.stringify({
       ok: true,
+      operation_id: body.operation_id,
       tenant_id: "tenant-a",
       scope: "scope-a",
       guide_trace_id: "guide-exec-1",
@@ -1400,7 +1403,8 @@ test("@aionis/sdk execution helpers wrap observe, guide, feedback, measure, and 
     used_memory_ids: ["mem-exec-1"],
   });
 
-  const measure = await client.execution.measureRun({
+  const measure: AionisMeasureResult = await client.execution.measureRun({
+    operation_id: "measure-exec-operation-1",
     run_id: "run-1",
     task_signature: "checkout-migration",
     workflow_signature: "checkout-migration-flow",
@@ -1425,6 +1429,8 @@ test("@aionis/sdk execution helpers wrap observe, guide, feedback, measure, and 
     "http://127.0.0.1:3001/v1/operator/snapshot",
   ]);
   assert.equal(calls[3]?.body.operation_id, "feedback-exec-operation-1");
+  assert.equal(calls[4]?.body.operation_id, "measure-exec-operation-1");
+  assert.equal(measure.operation_id, "measure-exec-operation-1");
 
   assert.equal(calls[0]?.body.memory_lane, "private");
   assert.equal((calls[0]?.body.execution as Record<string, unknown>).outcome, "succeeded");
@@ -1456,6 +1462,21 @@ test("@aionis/sdk execution helpers wrap observe, guide, feedback, measure, and 
     undefined,
   );
   assert.equal((calls[5]?.body.agent_context as Record<string, unknown>).prompt_text, "AIONIS_CTX v2\ncurrent use_now=passed branch");
+});
+
+test("@aionis/sdk measure loop helper preserves only explicit operation identity", () => {
+  const protectedInput = measureInputFromGuideLoop({
+    operation_id: "measure-helper-operation-1",
+    task: { run_id: "measure-helper-run-1" },
+    after_guide: { guide_trace_id: "measure-helper-guide-1" },
+  });
+  const legacyInput = measureInputFromGuideLoop({
+    task: { run_id: "measure-helper-run-2" },
+    after_guide: { guide_trace_id: "measure-helper-guide-2" },
+  });
+
+  assert.equal(protectedInput.operation_id, "measure-helper-operation-1");
+  assert.equal(Object.hasOwn(legacyInput, "operation_id"), false);
 });
 
 test("@aionis/sdk execution feedback cannot bypass exact attribution with guide_trace_id alone", async () => {
