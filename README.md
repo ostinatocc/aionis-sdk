@@ -10,10 +10,11 @@ Source: [https://github.com/ostinatocc/aionis-sdk](https://github.com/ostinatocc
 npm install @aionis/sdk
 ```
 
-SDK `0.3.17` is the client for the Aionis Runtime `v0.3.8` Local Runtime Public
-Beta candidate. It adds exact persisted guide-feedback attribution, canonical
-host-task envelopes, strict host-use feedback receipts, and protected
-guide/feedback operation identity while retaining typed durable writes and
+SDK `0.3.18` is the client for the Aionis Runtime `v0.3.9` Local Runtime Public
+Beta candidate. It adds atomic tool-feedback attribution with optional context
+and rule-evaluation provenance digests, feedback operation identity, exact
+persisted guide-feedback attribution, canonical host-task envelopes, and strict
+host-use feedback receipts while retaining typed durable writes and
 Runtime-owned evidence assessment. This is a beta contract for a single
 self-hosted Runtime process, not a GA managed or multi-instance HA contract.
 `feedbackFromGuide()` requires Runtime-provided `feedback_attribution_v1`;
