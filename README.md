@@ -10,13 +10,17 @@ Source: [https://github.com/ostinatocc/aionis-sdk](https://github.com/ostinatocc
 npm install @aionis/sdk
 ```
 
-SDK `0.3.18` is the client for the Aionis Runtime `v0.3.9` Local Runtime Public
-Beta candidate. It adds atomic tool-feedback attribution with optional context
-and rule-evaluation provenance digests, feedback operation identity, exact
-persisted guide-feedback attribution, canonical host-task envelopes, and strict
-host-use feedback receipts while retaining typed durable writes and
-Runtime-owned evidence assessment. This is a beta contract for a single
-self-hosted Runtime process, not a GA managed or multi-instance HA contract.
+Published SDK `0.3.18` is the client for the Aionis Runtime `v0.3.9` Local
+Runtime Public Beta candidate. This checkout additionally contains unreleased
+source changes targeting Runtime `v0.3.10` development, including protected
+measure operation identity. Its package version intentionally remains `0.3.18`
+until that source is released; the checkout version is not an npm compatibility
+claim. The client retains atomic tool-feedback attribution with optional
+context and rule-evaluation provenance digests, exact persisted guide-feedback
+attribution, canonical host-task envelopes, strict host-use feedback receipts,
+typed durable writes, and Runtime-owned evidence assessment. This is a beta
+contract for a single self-hosted Runtime process, not a GA managed or
+multi-instance HA contract.
 `feedbackFromGuide()` requires Runtime-provided `feedback_attribution_v1`;
 refresh cached guides created by older Runtime contracts before feedback.
 
@@ -110,7 +114,9 @@ const feedback = agentRun.used_memory_ids.length === 0
       used_memory_ids: agentRun.used_memory_ids,
     }));
 
+// Allocate once for this logical write and reuse it only for an exact retry.
 const measure = await aionis.measure(measureInputFromGuideLoop({
+  operation_id: "measure-run-001",
   task: {
     task_id: "task-001",
     run_id: "run-001",
