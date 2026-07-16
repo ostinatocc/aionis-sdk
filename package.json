@@ -1,6 +1,6 @@
 {
   "name": "@aionis/sdk",
-  "version": "0.3.18",
+  "version": "0.3.19",
   "description": "TypeScript SDK facade for the Aionis state-adjudicated memory Runtime.",
   "license": "Apache-2.0",
   "homepage": "https://docs.aionis.work/plugins/sdk",
@@ -21,7 +21,8 @@
   "files": [
     "dist",
     "verification",
-    "README.md"
+    "README.md",
+    "NOTICE"
   ],
   "engines": {
     "node": ">=22.5.0"
