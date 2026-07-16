@@ -10,15 +10,14 @@ Source: [https://github.com/ostinatocc/aionis-sdk](https://github.com/ostinatocc
 npm install @aionis/sdk
 ```
 
-Published SDK `0.3.18` is the client for the Aionis Runtime `v0.3.9` Local
-Runtime Public Beta candidate. This checkout additionally contains unreleased
-source changes targeting Runtime `v0.3.10` development, including protected
-measure operation identity. Its package version intentionally remains `0.3.18`
-until that source is released; the checkout version is not an npm compatibility
-claim. The client retains atomic tool-feedback attribution with optional
-context and rule-evaluation provenance digests, exact persisted guide-feedback
-attribution, canonical host-task envelopes, strict host-use feedback receipts,
-typed durable writes, and Runtime-owned evidence assessment. This is a beta
+SDK `0.3.19` is the client contract for the Aionis Runtime `v0.3.10`
+development train. It adds stable protected measure operation identity used by
+Runtime's episode-bound measurement, receipt, and effect authority, while
+retaining atomic tool-feedback attribution with optional context and
+rule-evaluation provenance digests, exact persisted guide-feedback attribution,
+canonical host-task envelopes, strict host-use feedback receipts, typed durable
+writes, and Runtime-owned evidence assessment. Runtime `v0.3.10` remains a
+development target rather than a published Runtime candidate. This is a beta
 contract for a single self-hosted Runtime process, not a GA managed or
 multi-instance HA contract.
 `feedbackFromGuide()` requires Runtime-provided `feedback_attribution_v1`;
