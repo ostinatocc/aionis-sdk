@@ -1,6 +1,6 @@
 {
   "name": "@aionis/sdk",
-  "version": "0.3.17",
+  "version": "0.3.18",
   "description": "TypeScript SDK facade for the Aionis state-adjudicated memory Runtime.",
   "license": "Apache-2.0",
   "homepage": "https://docs.aionis.work/plugins/sdk",
